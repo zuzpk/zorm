@@ -1,0 +1,50 @@
+{
+    "name": "@zuzjs/orm",
+    "version": "0.1.2",
+    "keywords": [
+        "orm",
+        "zuz",
+        "zuz.js",
+        "zuz orm",
+        "zuzjs"
+    ],
+    "description": "ZuzJS ORM Library",
+    "author": "Zuz.js Team <support@zuz.com.pk>",
+    "license": "MIT",
+    "type": "commonjs",
+    "main": "dist/index.js",
+    "bin": {
+        "zorm": "dist/bin.js"
+    },
+    "exports": {
+        ".": "./dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "dev": "tsc -d -w -p tsconfig.json"
+    },
+    "engines": {
+        "node": ">=18.17.0"
+    },
+    "dependencies": {
+        "@types/md5": "^2.3.5",
+        "commander": "^13.1.0",
+        "md5": "^2.3.0",
+        "mysql2": "^3.12.0",
+        "nanoid": "^5.1.0",
+        "picocolors": "^1.1.1",
+        "reflect-metadata": "^0.2.2",
+        "typeorm": "^0.3.20"
+    },
+    "devDependencies": {
+        "husky": "^9.1.7",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.3"
+    },
+    "peerDependencies": {
+        "reflect-metadata": "^0.2.2",
+        "typeorm": "^0.3.0"
+    }
+}

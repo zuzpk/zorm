@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "sourceMap": false,
+    "lib": ["DOM", "ESNext", "DOM.Iterable"],
+    "module": "CommonJS",
+    "strict": true,
+    "esModuleInterop": true,
+    "downlevelIteration": true,
+    "preserveWatchOutput": true,
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "moduleResolution": "Node",
+    "stripInternal": true,
+    "removeComments": false,
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "src/**/_*.*"]
+}
