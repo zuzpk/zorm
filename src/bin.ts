@@ -1,49 +1,25 @@
 #!/usr/bin/env node
-import path from "path"
-import pc from "picocolors"
 import { program } from "commander";
-// import fs, { readdirSync } from "fs";
-// import { fileURLToPath } from "url";
-import { MySqlDriver } from "./drivers/mysql/index.js";
-import { checkDirectory } from "./core/index.js";
+import { Pull } from "./core/cli.js";
+import pc from "picocolors"
 
 program
+    .name("zorm")
+    .description("ZuzORM is a lightweight ORM wrapper around TypeORM with support for MySQL.")
+
+/**Version */
+program
     .option(`-v, --version`)
-    .option(`-c, --connection <VALUE>`, `Database Connection String`)
-    .option(`-p, --dist`)
+    .description("Displays current version of ZuzORM")
+    .action(() => {
+        const packageJson = require("../package.json")
+        console.log(pc.cyan(`ZuzORM v${packageJson.version}`))
+        process.exit(1);
+    })
+
+program
+    .command(`pull`)
+    .description(`Pull using DATABASE_URL from .env in project directory`)
+    .action(Pull)
 
 program.parse()
-
-const { version, connection, dist: destination } = program.opts();
-
-if ( version ){
-    console.log(`ZuzORM v0.1.1`)
-    process.exit(1);
-}
-
-if ( connection ){
-    
-    const dist = destination || path.join(`src`, `zorm`)
-    
-    const _checkDist = checkDirectory(path.join(process.cwd(), dist), true)
-
-    if ( !_checkDist.access ){
-        console.log( pc.red(`○ ${_checkDist.message}`) )
-        process.exit(1);
-    }
-
-    if ( connection.startsWith(`mysql`) ){
-
-        const driver = new MySqlDriver(decodeURIComponent(connection), dist)
-
-        driver.generate();
-
-    }
-    else{
-        console.log(`Only MySQL is supported for now`)
-        process.exit(1);
-    }
-
-    
-
-}
