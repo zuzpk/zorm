@@ -47,6 +47,8 @@ export type SelectQueryResult = {
 
 export type UpdateQueryResult = {
     updated: boolean,
+    record?: ObjectLiteral,
+    records?: ObjectLiteral[],
     error?: QueryError
 }
 
@@ -55,3 +57,7 @@ export type DeleteQueryResult = {
     count: number,
     error?: QueryError
 }
+
+export { 
+    Entity, PrimaryColumn, PrimaryGeneratedColumn, Column, BaseEntity 
+} from "typeorm";

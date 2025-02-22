@@ -98,11 +98,27 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @param condition - The condition to be added.
      * @returns The current instance of ZormQueryBuilder.
      */
-    where(condition: FindOptionsWhere<T>): this {
-        (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T>).where(condition);
+    where(condition: Partial<Record<keyof T, any>>): this {
+        const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
+        Object.entries(condition).forEach(([key, value]) => {
+            if (typeof value === "string" && value.startsWith("!")) {
+                qb.andWhere(`${this.entityAlias}.${key} != :${key}`, { [key]: value.slice(1) });
+            } else if (typeof value === "boolean" || typeof value === "number") {
+                qb.andWhere(`${this.entityAlias}.${key} = :${key}`, { [key]: value });
+            } else {
+                qb.andWhere(`${this.entityAlias}.${key} = :${key}`, { [key]: value });
+            }
+        });
+    
         this.whereCount++
         return this;
     }
+    
+    // where(condition: FindOptionsWhere<T>): this {
+    //     (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T>).where(condition);
+    //     this.whereCount++
+    //     return this;
+    // }
 
     /**
      * Adds an OR condition to the query.
@@ -266,6 +282,15 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @returns A promise that resolves with the query result.
      */
     async execute(): Promise<R> {
+
+        const removedMethods: Record<string, any> = {};
+        Object.keys(Object.prototype).forEach((method) => {
+            if (Object.prototype.hasOwnProperty.call(Object.prototype, method!)) {
+                removedMethods[method!] = (Object.prototype as any)[method!];
+                delete (Object.prototype as any)[method!];
+            }
+        });
+
         try{
             switch (this.action) {
                 case "upsert":
@@ -281,9 +306,18 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     }
                 case "update":
                     this._update()
-                    const _update = await (this.queryBuilder as UpdateQueryBuilder<T>).execute()
-                    // console.log(`updated`, _update)
-                    return <R>{ updated: true }
+                    const _updateQuery = this.queryBuilder as UpdateQueryBuilder<T>
+                    const _update = await _updateQuery.execute()
+                    const whereQuery = _updateQuery.getQuery().split("WHERE")[1]?.trim(); // Get the WHERE clause
+                    const _get = this.repository
+                            .createQueryBuilder(this.entityAlias)
+                            .where(whereQuery, _updateQuery.getParameters()); // Use the same parameters
+                    const _updated = await _get.getMany()
+                    return <R>{ 
+                        updated: true, 
+                        record: _updated[0],
+                        records: _updated.length > 1 ? _updated : null
+                    }
                 case "delete":
                     this._delete()
                     const _delete = await (this.queryBuilder as DeleteQueryBuilder<T>).execute()
@@ -292,9 +326,9 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 default:
                     const _select = await (this.queryBuilder as SelectQueryBuilder<T>).getMany()
                     return <R>{
-                        hasRows: true,
+                        hasRows: _select.length > 0,
                         count: _select.length,
-                        row: _select[0],
+                        row: _select.length > 0 ? _select[0] : null,
                         rows: _select
                     }
             }
@@ -327,6 +361,11 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     const _s = <R>{ hasRows: false, count: 0, row: null, rows: [], error }
                     return this.usePromise ? Promise.reject(_s) : _s
             }
+        }
+        finally {
+            Object.entries(removedMethods).forEach(([method, fn]) => {
+                (Object.prototype as any)[method] = fn;
+            });
         }
     }
 
