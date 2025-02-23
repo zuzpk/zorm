@@ -64,7 +64,14 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     }
 
     _delete(): this {
-        this.queryBuilder = this.queryBuilder.delete() as DeleteQueryBuilder<T>
+
+        if ( this.whereCount > 0 ){    
+            this.queryBuilder = this.queryBuilder.delete() as DeleteQueryBuilder<T>
+        }
+        else {
+            throw stackTrace(`○ Delete must have at least one WHERE condition. You forgot to call .where({ condition: value })`);
+        }
+        
         return this;
     }
 
@@ -93,6 +100,31 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         return this;
     }
     
+    private applyCondition(
+        qb: SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>,
+        condition: Partial<Record<keyof T, any>>,
+        type: "andWhere" | "orWhere"
+    ): void {
+        Object.entries(condition).forEach(([key, value]) => {
+        if (typeof value === "string") {
+            const match = value.match(/^(!=|>=|<=|>|<|=)\s*(.+)$/); // Improved regex
+            if (match) {
+                const [, operator, rawValue] = match;
+                const sqlOperator = operator; // Directly use the matched operator
+
+                const paramKey = `${key}Param`; // Unique parameter name
+                const parsedValue = !isNaN(Number(rawValue)) ? Number(rawValue) : rawValue.trim(); // Convert to number if possible
+
+                qb[type](`${qb.alias}.${key} ${sqlOperator} :${paramKey}`, { [paramKey]: parsedValue });
+                return;
+            }
+        }
+
+        // Default case (normal equality condition)
+        qb[type](`${this.entityAlias}.${key} = :${key}`, { [key]: value });
+    });
+    }    
+
     /**
      * Adds a WHERE condition to the query.
      * @param condition - The condition to be added.
@@ -100,33 +132,19 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      */
     where(condition: Partial<Record<keyof T, any>>): this {
         const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
-        Object.entries(condition).forEach(([key, value]) => {
-            if (typeof value === "string" && value.startsWith("!")) {
-                qb.andWhere(`${this.entityAlias}.${key} != :${key}`, { [key]: value.slice(1) });
-            } else if (typeof value === "boolean" || typeof value === "number") {
-                qb.andWhere(`${this.entityAlias}.${key} = :${key}`, { [key]: value });
-            } else {
-                qb.andWhere(`${this.entityAlias}.${key} = :${key}`, { [key]: value });
-            }
-        });
-    
+        this.applyCondition(qb, condition, `andWhere`)
         this.whereCount++
         return this;
     }
     
-    // where(condition: FindOptionsWhere<T>): this {
-    //     (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T>).where(condition);
-    //     this.whereCount++
-    //     return this;
-    // }
-
     /**
      * Adds an OR condition to the query.
      * @param condition - The condition to be added.
      * @returns The current instance of ZormQueryBuilder.
      */
     or(condition: FindOptionsWhere<T>): this {
-        (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>).orWhere(condition);
+        const qb = (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>)
+        this.applyCondition(qb, condition, `orWhere`)
         return this;
     }
 
@@ -314,14 +332,16 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                             .where(whereQuery, _updateQuery.getParameters()); // Use the same parameters
                     const _updated = await _get.getMany()
                     return <R>{ 
-                        updated: true, 
+                        updated: _update.affected ? _update.affected > 0 : false, 
                         record: _updated[0],
-                        records: _updated.length > 1 ? _updated : null
+                        records: _updated.length > 1 ? _updated : []
                     }
                 case "delete":
                     this._delete()
                     const _delete = await (this.queryBuilder as DeleteQueryBuilder<T>).execute()
-                    return <R>{ deleted: true, count: _delete.affected || 0 }
+                    return <R>{ 
+                        deleted: _delete.affected ? _delete.affected > 0 : false, 
+                        count: _delete.affected || 0 }
                 case "select":
                 default:
                     const _select = await (this.queryBuilder as SelectQueryBuilder<T>).getMany()
@@ -329,7 +349,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                         hasRows: _select.length > 0,
                         count: _select.length,
                         row: _select.length > 0 ? _select[0] : null,
-                        rows: _select
+                        rows: _select.length > 1 ? _select : []
                     }
             }
 

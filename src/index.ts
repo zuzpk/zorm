@@ -180,7 +180,7 @@ class Zorm {
      * @param {EntityTarget<T>} entity - The entity target.
      * @returns {ZormQueryBuilder<T, DeleteQueryResult>} The query builder instance.
      */
-    delete<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, UpdateQueryResult> {
+    delete<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, DeleteQueryResult> {
         return this.getQueryBuilder(entity, "delete");
     }
 
