@@ -59,5 +59,6 @@ export type DeleteQueryResult = {
 }
 
 export { 
-    Entity, PrimaryColumn, PrimaryGeneratedColumn, Column, BaseEntity 
+    Entity, PrimaryColumn, PrimaryGeneratedColumn, Column, BaseEntity,
+    OneToOne, JoinColumn, 
 } from "typeorm";

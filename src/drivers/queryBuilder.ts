@@ -90,6 +90,16 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     }
 
     /**
+     * Sets the values for an insert or update query.
+     * @param data - The data to be inserted or updated.
+     * @returns The current instance of ZormQueryBuilder.
+     */
+    withData(data: QueryDeepPartialEntity<T> | QueryDeepPartialEntity<T[]>): this {
+        this.queryValues = data
+        return this
+    }
+
+    /**
      * Specifies the fields to be selected in a select query.
      * @param fields - The fields to be selected.
      * @returns The current instance of ZormQueryBuilder.
@@ -187,8 +197,8 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @param relations - The relations to be included.
      * @returns The current instance of ZormQueryBuilder.
      */
-    relations(relations: string[]): this {
-        relations.forEach(relation => (this.queryBuilder as  SelectQueryBuilder<T>).leftJoinAndSelect(`${this.entityAlias}.${relation}`, relation));
+    withRelation(rel : string, ...more: string[]): this {
+        [ rel, ...more ].forEach(relation => (this.queryBuilder as  SelectQueryBuilder<T>).leftJoinAndSelect(`${this.entityAlias}.${relation}`, relation));
         return this;
     }
 
@@ -318,7 +328,6 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 case "create":
                     this._create()
                     const _create = await (this.queryBuilder as InsertQueryBuilder<T>).execute()
-                    // console.log(_create)
                     return <R>{ 
                         created: true, 
                         id: _create.raw.insertId, 

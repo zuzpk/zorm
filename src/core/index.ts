@@ -1,5 +1,4 @@
 import fs from "fs"
-import pc from "picocolors"
 
 export const toPascalCase = (str: string): string => {
     return str.replace(/(^\w|_\w)/g, (match) => match.replace("_", "").toUpperCase());
