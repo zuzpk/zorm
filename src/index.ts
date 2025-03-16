@@ -1,11 +1,11 @@
 import path from "path";
+import pc from "picocolors";
+import "reflect-metadata";
 import { DataSource, EntitySchema, EntityTarget, MixedList, ObjectLiteral, Repository } from "typeorm";
 import { checkDirectory } from "./core/index.js";
-import pc from "picocolors"
 import { MySqlDriver } from "./drivers/mysql/index.js";
 import ZormQueryBuilder from "./drivers/queryBuilder.js";
 import { DeleteQueryResult, InsertQueryResult, QueryAction, QueryResult, SelectQueryResult, UpdateQueryResult } from "./types.js";
-import "reflect-metadata";
 
 /**
  * Zorm is a lightweight ORM wrapper around TypeORM with support for MySQL.
@@ -188,4 +188,4 @@ class Zorm {
 
 export default Zorm
 
-export * from "./types.js"
+export * from "./types.js";

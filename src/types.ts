@@ -42,7 +42,8 @@ export type SelectQueryResult = {
     count?: number,
     row?: any,
     rows?: any[],
-    error?: QueryError
+    error?: QueryError,
+    save?: () => void
 }
 
 export type UpdateQueryResult = {
@@ -58,7 +59,4 @@ export type DeleteQueryResult = {
     error?: QueryError
 }
 
-export { 
-    Entity, PrimaryColumn, PrimaryGeneratedColumn, Column, BaseEntity,
-    OneToOne, JoinColumn, 
-} from "typeorm";
+export { BaseEntity, Column, Entity, JoinColumn, OneToOne, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm"

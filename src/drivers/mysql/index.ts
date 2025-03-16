@@ -1,9 +1,9 @@
-import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import fs from 'fs';
+import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import path from 'path';
-import { ConnectionDetails, ModelGenerator } from '../../types.js';
-import pc from "picocolors"
+import pc from "picocolors";
 import { toPascalCase } from '../../core/index.js';
+import { ConnectionDetails, ModelGenerator } from '../../types.js';
 
 export const parseConnectionString = (connectionString: string) => {
     const regex = /mysql:\/\/(?<user>[^:]+):(?<password>[^@]+)@(?<host>[^:/]+)(?::(?<port>\d+))?\/(?<database>[^?]+)(?:\?(?<params>.+))?/;
@@ -182,8 +182,6 @@ export class MySqlDriver implements ModelGenerator {
             const _imports : string[] = [`Entity`, `BaseEntity`]
             
             // Get table structure
-            // const [columns]: [any[], any] = await self.pool!.execute(`DESCRIBE ${tableName}`);
-
             const [columns]: [any[], any] = await this.pool!.execute(
                 `SELECT COLUMN_NAME as \`Field\`, COLUMN_TYPE as \`Type\`, COLUMN_KEY as \`Key\`, IS_NULLABLE as \`Null\`, COLUMN_DEFAULT as \`Default\`, EXTRA as \`Extra\`, COLUMN_COMMENT as \`Comment\`
                  FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION ASC`,
@@ -227,7 +225,7 @@ export class MySqlDriver implements ModelGenerator {
                     entityCode.push(`\t/** @comment ${Comment} */`);
                 }
                 
-                entityCode.push(`\t${Field}!: ${tsType};\n`)
+                entityCode.push(`\t${Field}!: ${Key == `PRI` && [`int`,`bigint`].includes(Type) ? `number` : tsType};\n`)
             }
 
             // Add foreign key relationships

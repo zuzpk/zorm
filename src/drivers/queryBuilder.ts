@@ -1,10 +1,9 @@
-import { Repository, EntityTarget, ObjectLiteral, FindOptionsWhere, SelectQueryBuilder, UpdateQueryBuilder, InsertQueryBuilder, DeleteQueryBuilder, UpdateResult, DeleteResult, InsertResult, QueryFailedError } from "typeorm";
-import { QueryAction, QueryError } from "../types";
 import { QueryResult } from "mysql2";
+import { DeleteQueryBuilder, InsertQueryBuilder, ObjectLiteral, QueryFailedError, Repository, SelectQueryBuilder, UpdateQueryBuilder } from "typeorm";
 import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
-import { MySQLErrorMap } from "./mysql/index.js";
-import pc from "picocolors"
 import { stackTrace } from "../core";
+import { QueryAction, QueryError, SelectQueryResult } from "../types";
+import { MySQLErrorMap } from "./mysql/index.js";
 
 class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise<R> {
     private repository: Repository<T>;
@@ -14,6 +13,8 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     private queryValues: QueryDeepPartialEntity<T> | QueryDeepPartialEntity<T[] | null> = null;
     private usePromise: boolean;
     private whereCount: number = 0;
+    private isActiveRecord: boolean = false;
+    private activeRecord : T | null
     
     constructor(repository: Repository<T>, _action: QueryAction, _usePromise?: boolean) {
         super(() => {}); // Required for extending Promise
@@ -22,6 +23,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         this.queryBuilder = repository.createQueryBuilder(this.entityAlias);
         this.action = _action
         this.usePromise = _usePromise || false;
+        this.activeRecord =  null
     }
 
     _create(): this {
@@ -77,6 +79,19 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
 
     _getRawQuery(){
         return this.queryBuilder.getQueryAndParameters()
+    }
+
+    active(){
+        this.isActiveRecord = true
+        return this
+    }
+
+    async _saveActiveRecord(activeRecord: T): Promise<T | null> {
+        
+        // if (!this.activeRecord) throw new Error("No active record found. Use `findOne` first.");
+        
+        return this.repository.save(activeRecord);
+        // return this
     }
 
     /**
@@ -262,6 +277,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      */
     in(field: keyof T, values: any[]): this {
         (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>).andWhere(`${this.entityAlias}.${String(field)} IN (:...values)`, { values });
+        this.whereCount++
         return this;
     }
 
@@ -357,12 +373,19 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 case "select":
                 default:
                     const _select = await (this.queryBuilder as SelectQueryBuilder<T>).getMany()
-                    return <R>{
+                    
+                    const _result : SelectQueryResult = {
                         hasRows: _select.length > 0,
                         count: _select.length,
                         row: _select.length > 0 ? _select[0] : null,
-                        rows: _select.length > 1 ? _select : []
+                        rows: _select.length > 1 ? _select : [],
                     }
+
+                    if ( this.isActiveRecord ){
+                        _result.save = () => this._saveActiveRecord(_select[0])
+                    }
+                    
+                    return _result as R
             }
 
         } catch (err) {
