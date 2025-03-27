@@ -113,7 +113,7 @@ export class MySqlDriver implements ModelGenerator {
         }
     }
 
-    mapColumns(sqlType: string): { tsType: string; columnType: string; length?: number } {
+    mapColumns(sqlType: string): { tsType: string; columnType: string; length?: number; enumValues?: string[] } {
 
         const typeMap: Record<string, { tsType: string; columnType: string; length?: number }> = {
             "int": { tsType: "number", columnType: "int" },
@@ -134,6 +134,15 @@ export class MySqlDriver implements ModelGenerator {
             "time": { tsType: "string", columnType: "time" },
             "json": { tsType: "any", columnType: "json" },
         };
+
+        const enumMatch = sqlType.match(/^enum\((.*)\)$/i);
+        if (enumMatch) {
+            const enumValues = enumMatch[1]
+                .split(",")
+                .map((val) => val.trim().replace(/^'|'$/g, "")); // Remove single quotes
+    
+            return { tsType: `"${enumValues.join('" | "')}"`, columnType: "enum", enumValues };
+        }
 
         const match = sqlType.match(/^(\w+)(?:\((\d+)\))?/);
         if (!match) return { tsType: "any", columnType: "varchar", length: 255 };
@@ -180,6 +189,7 @@ export class MySqlDriver implements ModelGenerator {
         
         for (const tableName of tableNames) {
             
+            const enums : string[] = []
             const imports : string[] = []
             const _imports : string[] = [`Entity`, `BaseEntity`]
             
@@ -197,8 +207,18 @@ export class MySqlDriver implements ModelGenerator {
             for (const column of columns) {
                 // console.log(tableName, column)
                 const { Field, Type, Key, Null, Default, Extra, Comment } = column;
-                const { tsType, columnType, length } = this.mapColumns(Type);
+                const { tsType, columnType, length, enumValues } = this.mapColumns(Type);
                 
+                let enumName : string | null = null
+
+                if (columnType === "enum" && enumValues) {
+
+                    enumName = toPascalCase(Field);
+                    enums.push(`export enum ${enumName} { ${enumValues.map(v => `${toPascalCase(v)} = "${v}"`).join(", ")} }`);
+
+                    // entityCode.push(`\t@Column({ type: "enum", enum: ${enumName} })\n`);
+
+                }
 
                 // Handle primary key
                 if (Key === "PRI") {
@@ -217,6 +237,7 @@ export class MySqlDriver implements ModelGenerator {
 
                     if (length) columnDecorator += `, length: ${length}`;
                     if (Null === "YES") columnDecorator += `, nullable: true`;
+                    if (enumName) columnDecorator += `, enum: ${enumName}`;
                     if (Default !== null) columnDecorator += `, default: ${this.formatDefault(Default, tsType)}`;
     
                     columnDecorator += ` })`;
@@ -227,7 +248,8 @@ export class MySqlDriver implements ModelGenerator {
                     entityCode.push(`\t/** @comment ${Comment} */`);
                 }
                 
-                entityCode.push(`\t${Field}!: ${Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
+                entityCode.push(`\t${Field}!: ${enumName ? enumName : Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
+                
             }
 
             // Add foreign key relationships
@@ -252,7 +274,8 @@ export class MySqlDriver implements ModelGenerator {
                 `*/`,
                 `import { ${_imports.join(`, `)} } from "@zuzjs/orm";`,
                 imports.length > 0 ? imports.join(`\n`) : ``,
-                `${imports.length > 0 ? `\n` : ``}@Entity({ name: "${tableName}" })`,
+                enums.length > 0 ? enums.join(`\n`) : ``,
+                `${enums.length > 0 || imports.length > 0 ? `\n` : ``}@Entity({ name: "${tableName}" })`,
                 `export class ${toPascalCase(tableName as string)} extends BaseEntity {\n`,
                     ...entityCode,
                 `}`
