@@ -154,6 +154,8 @@ export class MySqlDriver implements ModelGenerator {
         const self = this;
         self.createPool();
 
+        const numberTypes = [`int`,`bigint`,`tinyint`,`decimal`]
+
         //Extract Tables
         console.log( pc.cyan( "○ Extract Tables...") );
         const [tables]: [any[], any] = await self.pool!.execute("SHOW TABLES");
@@ -225,7 +227,7 @@ export class MySqlDriver implements ModelGenerator {
                     entityCode.push(`\t/** @comment ${Comment} */`);
                 }
                 
-                entityCode.push(`\t${Field}!: ${Key == `PRI` && [`int`,`bigint`].includes(Type) ? `number` : tsType};\n`)
+                entityCode.push(`\t${Field}!: ${Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
             }
 
             // Add foreign key relationships

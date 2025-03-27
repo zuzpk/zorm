@@ -2,7 +2,7 @@ import { QueryResult } from "mysql2";
 import { DeleteQueryBuilder, InsertQueryBuilder, ObjectLiteral, QueryFailedError, Repository, SelectQueryBuilder, UpdateQueryBuilder } from "typeorm";
 import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 import { stackTrace } from "../core";
-import { QueryAction, QueryError, SelectQueryResult } from "../types";
+import { PartialConditions, QueryAction, QueryError, SelectQueryResult } from "../types";
 import { MySQLErrorMap } from "./mysql/index.js";
 
 class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise<R> {
@@ -127,12 +127,14 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     
     private applyCondition(
         qb: SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>,
-        condition: Partial<Record<keyof T, any>>,
+        condition: PartialConditions<T>,
         type: "andWhere" | "orWhere"
     ): void {
         Object.entries(condition).forEach(([key, value], index) => {
 
             const paramKey = `${key}Param${index}_${this.whereCount}`; // Unique parameter name
+
+            let sqlOperator = "="; // Default to "="
 
             if (typeof value === "string") {
                 const match = value.match(/^(!=|>=|<=|>|<|=)\s*(.+)$/); // Improved regex
@@ -145,6 +147,26 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     qb[type](`${qb.alias}.${key} ${sqlOperator} :${paramKey}`, { [paramKey]: parsedValue });
                     return;
                 }
+            }
+            else if (typeof value === "object" && value !== null) {
+                // Support object-based conditions: { age: { gt: 18, lt: 20 } }
+                const operators: Record<string, string> = {
+                    gt: ">",
+                    gte: ">=",
+                    lt: "<",
+                    lte: "<=",
+                    ne: "!=",
+                    eq: "="
+                };
+    
+                Object.entries(value).forEach(([opKey, opValue]) => {
+                    if (operators[opKey]) {
+                        const paramKey = `${key}Param_${opKey}_${this.whereCount++}`; // Unique param key
+                        qb[type](`${qb.alias}.${key} ${operators[opKey]} :${paramKey}`, { [paramKey]: opValue });
+                    }
+                });
+    
+                return; // Prevent default equality case for objects
             }
 
             // Default case (normal equality condition)
@@ -159,7 +181,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @param condition - The condition to be added.
      * @returns The current instance of ZormQueryBuilder.
      */
-    where(condition: Partial<Record<keyof T, any>>): this {
+    where(condition: PartialConditions<T>): this {
         const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
         this.applyCondition(qb, condition, `andWhere`)
         return this;
@@ -170,7 +192,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @param condition - The condition to be added.
      * @returns The current instance of ZormQueryBuilder.
      */
-    or(condition: Partial<Record<keyof T, any>>): this {
+    or(condition: PartialConditions<T>): this {
         const qb = (this.queryBuilder as  SelectQueryBuilder<T> | UpdateQueryBuilder<T> | DeleteQueryBuilder<T>)
         this.applyCondition(qb, condition, `orWhere`)
         return this;
@@ -282,6 +304,44 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     }
 
     /**
+     * Adds a LIKE condition to the query, supporting both single and multiple values.
+     * If an array is provided, it uses OR conditions between them.
+     * @param field - The field to apply the LIKE condition on.
+     * @param value - A string or an array of strings to match.
+     * @returns The current instance of ZormQueryBuilder.
+     */
+    like(conditions: Partial<Record<keyof T, string | string[]>>): this {
+        if (!conditions || Object.keys(conditions).length === 0) return this;
+
+        const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
+        const orConditions: string[] = [];
+        const params: Record<string, string> = {};
+
+        Object.entries(conditions).forEach(([field, value]) => {
+            const values = Array.isArray(value) ? value : [value];
+            const fieldConditions: string[] = [];
+
+            values.forEach((val, index) => {
+                const paramKey = `${field}LikeParam${index}_${this.whereCount}`;
+                fieldConditions.push(`${this.entityAlias}.${String(field)} LIKE :${paramKey}`);
+                params[paramKey] = val; // Directly use the value (supports %xyz% pattern)
+            });
+
+            if (fieldConditions.length > 0) {
+                orConditions.push(`(${fieldConditions.join(" OR ")})`);
+            }
+        });
+
+        if (orConditions.length > 0) {
+            qb.andWhere(`(${orConditions.join(" OR ")})`, params);
+            this.whereCount++;
+        }
+
+        return this;
+    }    
+
+
+    /**
      * Adds a DISTINCT clause to the query.
      * @returns The current instance of ZormQueryBuilder.
      */
@@ -290,7 +350,10 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         return this;
     }
 
-    async count(): Promise<number> {
+    async count(field?: keyof T): Promise<number> {
+        if (field) {
+            (this.queryBuilder as  SelectQueryBuilder<T>).select(`COUNT(${field as string})`);
+        }
         return await (this.queryBuilder as  SelectQueryBuilder<T>).getCount();
     }
 
