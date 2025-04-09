@@ -120,8 +120,8 @@ export class MySqlDriver implements ModelGenerator {
             "tinyint": { tsType: "boolean", columnType: "tinyint" },
             "smallint": { tsType: "number", columnType: "smallint" },
             "mediumint": { tsType: "number", columnType: "mediumint" },
-            "bigint": { tsType: "string", columnType: "bigint" }, // bigint is safer as string
-            "decimal": { tsType: "string", columnType: "decimal" },
+            "bigint": { tsType: "number", columnType: "bigint" }, // bigint is safer as string
+            "decimal": { tsType: "number", columnType: "decimal" },
             "float": { tsType: "number", columnType: "float" },
             "double": { tsType: "number", columnType: "double" },
             "varchar": { tsType: "string", columnType: "varchar", length: 255 },
