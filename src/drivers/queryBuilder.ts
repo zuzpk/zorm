@@ -24,6 +24,23 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         this.action = _action
         this.usePromise = _usePromise || false;
         this.activeRecord =  null
+
+        // switch (_action) {
+        //     case "create":
+        //     case "upsert":
+        //         this.queryBuilder = repository.createQueryBuilder(this.entityAlias) as InsertQueryBuilder<ObjectLiteral>;
+        //         break;
+        //     case "update":
+        //         this.queryBuilder = repository.createQueryBuilder(this.entityAlias).update() as UpdateQueryBuilder<T>;
+        //         break;
+        //     case "delete":
+        //         this.queryBuilder = repository.createQueryBuilder(this.entityAlias).delete() as DeleteQueryBuilder<T>;
+        //         break;
+        //     case "select":
+        //     default:
+        //         this.queryBuilder = repository.createQueryBuilder(this.entityAlias) as SelectQueryBuilder<T>;
+        //         break;
+        // }
     }
 
     _create(): this {
@@ -421,6 +438,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     const _get = this.repository
                             .createQueryBuilder(this.entityAlias)
                             .where(whereQuery, _updateQuery.getParameters()); // Use the same parameters
+                    // console.log(_updateQuery.getQueryAndParameters())
                     const _updated = await _get.getMany()
                     return <R>{ 
                         updated: _update.affected ? _update.affected > 0 : false, 

@@ -1,4 +1,4 @@
-import fs from "fs"
+import fs from "fs";
 
 export const toPascalCase = (str: string): string => {
     return str.replace(/(^\w|_\w)/g, (match) => match.replace("_", "").toUpperCase());
@@ -64,3 +64,5 @@ export const stackTrace = (_error: string, ...more: string[]) : Error => {
     return Error(lines.join(`\n`))
 
 }
+
+export const isNumber = (val: any) => /^[+-]?\d+(\.\d+)?$/.test(val)

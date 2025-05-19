@@ -2,7 +2,7 @@ import fs from 'fs';
 import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import path from 'path';
 import pc from "picocolors";
-import { toPascalCase } from '../../core/index.js';
+import { isNumber, toPascalCase } from '../../core/index.js';
 import { ConnectionDetails, ModelGenerator } from '../../types.js';
 
 export const parseConnectionString = (connectionString: string) => {
@@ -214,9 +214,9 @@ export class MySqlDriver implements ModelGenerator {
                 if (columnType === "enum" && enumValues) {
 
                     enumName = toPascalCase(Field);
-                    enums.push(`export enum ${enumName} { ${enumValues.map(v => `${toPascalCase(v)} = "${v}"`).join(", ")} }`);
-
-                    // entityCode.push(`\t@Column({ type: "enum", enum: ${enumName} })\n`);
+                    enums.push(`export enum ${enumName} { ${enumValues.map(v => {
+                        return `${isNumber(v) ? `val${v}` : toPascalCase(v)} = "${v}"`
+                    }).join(", ")} }`);
 
                 }
 
