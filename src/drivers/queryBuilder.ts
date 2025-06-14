@@ -327,7 +327,10 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * @param value - A string or an array of strings to match.
      * @returns The current instance of ZormQueryBuilder.
      */
-    like(conditions: Partial<Record<keyof T, string | string[]>>): this {
+    like(
+        conditions: Partial<Record<keyof T, string | string[]>>,
+        mode: "contains" | "startsWith" | "endsWith" | "exact"
+    ): this {
         if (!conditions || Object.keys(conditions).length === 0) return this;
 
         const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
@@ -341,7 +344,24 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
             values.forEach((val, index) => {
                 const paramKey = `${field}LikeParam${index}_${this.whereCount}`;
                 fieldConditions.push(`${this.entityAlias}.${String(field)} LIKE :${paramKey}`);
-                params[paramKey] = val; // Directly use the value (supports %xyz% pattern)
+
+                let formattedVal = val;
+                switch (mode || "contains") {
+                    case "startsWith":
+                        formattedVal = `${val}%`;
+                        break;
+                    case "endsWith":
+                        formattedVal = `%${val}`;
+                        break;
+                    case "exact":
+                        formattedVal = `${val}`;
+                        break;
+                    case "contains":
+                    default:
+                        formattedVal = `%${val}%`;
+                }
+
+                params[paramKey] = formattedVal; // Directly use the value (supports %xyz% pattern)
             });
 
             if (fieldConditions.length > 0) {
