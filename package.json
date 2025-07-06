@@ -1,6 +1,6 @@
 {
     "name": "@zuzjs/orm",
-    "version": "0.2.8",
+    "version": "0.3.1",
     "keywords": [
         "orm",
         "zuz",
@@ -31,21 +31,21 @@
     "sideEffects": ["reflect-metadata"],
     "dependencies": {
         "@types/md5": "^2.3.5",
-        "commander": "^13.1.0",
+        "commander": "14.0.0",
         "md5": "^2.3.0",
-        "mysql2": "^3.12.0",
-        "nanoid": "^5.1.0",
+        "mysql2": "3.14.1",
+        "nanoid": "5.1.5",
         "picocolors": "^1.1.1",
         "reflect-metadata": "^0.2.2",
-        "typeorm": "^0.3.20"
+        "typeorm": "^0.3.25"
     },
     "devDependencies": {
         "husky": "^9.1.7",
         "ts-node": "^10.9.2",
-        "typescript": "^5.7.3"
+        "typescript": "^5.8.3"
     },
     "peerDependencies": {
         "reflect-metadata": "^0.2.2",
-        "typeorm": "^0.3.0"
+        "typeorm": "^0.3.25"
     }
 }

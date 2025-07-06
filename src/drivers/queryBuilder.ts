@@ -3,6 +3,7 @@ import { DeleteQueryBuilder, InsertQueryBuilder, ObjectLiteral, QueryFailedError
 import { QueryDeepPartialEntity } from "typeorm/query-builder/QueryPartialEntity";
 import { stackTrace } from "../core";
 import { PartialConditions, QueryAction, QueryError, SelectQueryResult } from "../types";
+import ZormExprBuilder from "./expressionBuilder";
 import { MySQLErrorMap } from "./mysql/index.js";
 
 class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise<R> {
@@ -111,6 +112,19 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         // return this
     }
 
+    clone(): ZormQueryBuilder<T, R> {
+        const cloned = new ZormQueryBuilder<T, R>(this.repository, this.action, this.usePromise);
+
+        cloned.queryBuilder = this.queryBuilder.clone(); // Deep clone of query builder
+        cloned.entityAlias = this.entityAlias;
+        cloned.queryValues = this.queryValues ? structuredClone(this.queryValues) : null;
+        cloned.whereCount = this.whereCount;
+        cloned.isActiveRecord = this.isActiveRecord;
+        cloned.activeRecord = this.activeRecord;
+
+        return cloned;
+    }
+
     /**
      * Sets the values for an insert or update query.
      * @param data - The data to be inserted or updated.
@@ -191,7 +205,28 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
             this.whereCount++
 
         });
-    }    
+    }  
+    
+    /**
+     * Adds a custom expression-based WHERE clause using a fluent builder.
+     * @param fn - A callback that receives a ZormExprBuilder and returns an expression + param.
+     */
+    expression(exprFn: (q: ZormExprBuilder<T>) => { expression: string; param: Record<string, any> } | ZormExprBuilder<T>): this {
+        
+        const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
+        const result = exprFn(new ZormExprBuilder<T>());
+
+        if ('expression' in result && 'param' in result) {
+            qb.andWhere(result.expression, result.param);
+        } else {
+            // fallback if only expression was built without .equals()
+            qb.andWhere(result.buildExpression(), result.buildParam());
+        }
+
+        this.whereCount++;
+        return this;
+    }
+
 
     /**
      * Adds a WHERE condition to the query.
@@ -479,7 +514,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                         hasRows: _select.length > 0,
                         count: _select.length,
                         row: _select.length > 0 ? _select[0] : null,
-                        rows: _select.length > 1 ? _select : [],
+                        rows: _select.length == 1 ? [_select[0]] : _select,
                     }
 
                     if ( this.isActiveRecord ){
