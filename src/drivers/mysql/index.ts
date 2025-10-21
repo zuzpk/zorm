@@ -255,15 +255,21 @@ export class MySqlDriver implements ModelGenerator {
             // Add foreign key relationships
             if ( foreignKeys[tableName as string] ){
                 for (const fk of foreignKeys[tableName as string] || []) {
-                    const relatedEntity = toPascalCase(fk.REFERENCED_TABLE_NAME);
-                    entityCode.push(`\t@OneToOne(() => ${relatedEntity})`);
-                    entityCode.push(`\t@JoinColumn({ name: "${fk.COLUMN_NAME}" })`);
-                    entityCode.push(`\tfk${relatedEntity}!: ${relatedEntity};\n`);
-                    
-                    imports.push(`import { ${relatedEntity} } from "./${fk.REFERENCED_TABLE_NAME}";`);
 
-                    if ( !_imports.includes(`OneToOne`) ) _imports.push(`OneToOne`);
-                    if ( !_imports.includes(`JoinColumn`) ) _imports.push(`JoinColumn`);
+                    const relatedEntity = toPascalCase(fk.REFERENCED_TABLE_NAME);
+
+                    if ( imports.includes(`import { ${relatedEntity} } from "./${fk.REFERENCED_TABLE_NAME}";`) === false ){
+
+                        entityCode.push(`\t@OneToOne(() => ${relatedEntity})`);
+                        entityCode.push(`\t@JoinColumn({ name: "${fk.COLUMN_NAME}" })`);
+                        entityCode.push(`\tfk${relatedEntity}!: ${relatedEntity};\n`);
+                        
+                        imports.push(`import { ${relatedEntity} } from "./${fk.REFERENCED_TABLE_NAME}";`);
+
+                        if ( !_imports.includes(`OneToOne`) ) _imports.push(`OneToOne`);
+                        if ( !_imports.includes(`JoinColumn`) ) _imports.push(`JoinColumn`);
+
+                    }
                 }
             }
 
