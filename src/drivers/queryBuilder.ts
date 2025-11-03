@@ -211,21 +211,38 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
      * Adds a custom expression-based WHERE clause using a fluent builder.
      * @param fn - A callback that receives a ZormExprBuilder and returns an expression + param.
      */
-    expression(exprFn: (q: ZormExprBuilder<T>) => { expression: string; param: Record<string, any> } | ZormExprBuilder<T>): this {
+    expression(exprFn: (
+        q: ZormExprBuilder<T>) => ZormExprBuilder<T>,
+        /** Add parentheses group to built expression */
+        group: boolean = true
+    ): this {
         
         const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
-        const result = exprFn(new ZormExprBuilder<T>());
-
-        if ('expression' in result && 'param' in result) {
-            qb.andWhere(result.expression, result.param);
-        } else {
-            // fallback if only expression was built without .equals()
-            qb.andWhere(result.buildExpression(), result.buildParam());
-        }
+        const result = exprFn(new ZormExprBuilder<T>(this.entityAlias));
+        const _expression = result.buildExpression()
+        qb.andWhere(group ? `(${_expression})` : _expression, result.buildParams());
 
         this.whereCount++;
         return this;
     }
+
+    // expression(exprFn: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
+        
+    //     const qb = this.queryBuilder as SelectQueryBuilder<T> | UpdateQueryBuilder<T>;
+    //     const result = exprFn(new ZormExprBuilder<T>(this.entityAlias));
+
+    //     // const expression = 
+
+    //     qb.andWhere(result.buildExpression(), result.buildParams());
+    //     // if ('expression' in result && 'param' in result) {
+    //     // } else {
+    //     //     // fallback if only expression was built without .equals()
+    //     // }
+    //     // qb.andWhere(result.buildExpression(), result.buildParams());
+
+    //     this.whereCount++;
+    //     return this;
+    // }
 
 
     /**
