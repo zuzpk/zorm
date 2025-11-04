@@ -186,6 +186,58 @@ export class MySqlDriver implements ModelGenerator {
             foreignKeys[tableName as string] = fkResults;
         }
 
+        // Track inverse relations: { tableName: { fkColumn: targetTable } }
+        const inverseRelations: Record<string, { fkColumn: string; targetTable: string; targetEntity: string }[]> = {};
+
+        // Populate inverse map
+        for (const [tableName, fks] of Object.entries(foreignKeys)) {
+            for (const fk of fks) {
+                const targetTable = fk.REFERENCED_TABLE_NAME;
+                const fkColumn = fk.COLUMN_NAME;
+
+                if (!inverseRelations[targetTable]) {
+                    inverseRelations[targetTable] = [];
+                }
+
+                inverseRelations[targetTable].push({
+                    fkColumn,
+                    targetTable: tableName,
+                    targetEntity: toPascalCase(tableName)
+                });
+            }
+        }
+
+        // Detect 2 Column Junction Tables for ManyToMany
+        const junctionTables: Record<string, { left: string; right: string; leftCol: string; rightCol: string }> = {};
+
+        for (const tableName of tableNames) {
+            const [cols]: [any[], any] = await this.pool!.execute(
+                `SELECT COLUMN_NAME, COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS 
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+                [this.conn.database, tableName]
+            );
+
+            const fks = foreignKeys[String(tableName)] || [];
+            if (fks.length !== 2) continue;
+
+            // Must have exactly 2 columns
+            if (cols.length !== 2) continue;
+
+            // Both columns must be primary key
+            if (cols.filter(c => c.COLUMN_KEY !== 'PRI').length > 0) continue;
+
+            const [left, right] = fks;
+            const [t1, t2] = [left.REFERENCED_TABLE_NAME, right.REFERENCED_TABLE_NAME].sort();
+            const key = `${t1}_${t2}`;
+            if (!junctionTables[key]) {
+                junctionTables[key] = {
+                    left: t1,
+                    right: t2,
+                    leftCol: left.COLUMN_NAME,
+                    rightCol: right.COLUMN_NAME
+                };
+            }
+        }
         
         for (const tableName of tableNames) {
             
@@ -271,6 +323,49 @@ export class MySqlDriver implements ModelGenerator {
 
                     }
                 }
+            }
+
+            // Add OneToMany Relations
+            const inverse = inverseRelations[String(tableName)] || [];
+            for (const rel of inverse) {
+                const propName = rel.targetTable.endsWith('s') ? rel.targetTable : `${rel.targetTable}s`;
+
+                // Avoid duplicate
+                if (entityCode.some(line => line.includes(`@${propName}`))) continue;
+
+                const importLine = `import { ${rel.targetEntity} } from "./${rel.targetTable}";`;
+                if (!imports.includes(importLine)) {
+                    imports.push(importLine);
+                }
+
+                if (!_imports.includes('OneToMany')) _imports.push('OneToMany');
+
+                entityCode.push(`\t@OneToMany(() => ${rel.targetEntity}, r => r.${rel.fkColumn})`);
+                entityCode.push(`\tfk${toPascalCase(propName)}!: ${rel.targetEntity}[];\n`);
+            }
+
+            // Add Many-to-Many Relations
+            const junctions = Object.values(junctionTables)
+                .filter(j => j.left === tableName || j.right === tableName);
+            
+            for (const j of junctions) {
+                const targetTable = j.left === tableName ? j.right : j.left;
+                const targetEntity = toPascalCase(targetTable);
+                const propName = targetTable.endsWith('s') ? targetTable : `${targetTable}s`;
+
+                if (entityCode.some(line => line.includes(`@${propName}`))) continue;
+
+                const importLine = `import { ${targetEntity} } from "./${targetTable}";`;
+                if (!imports.includes(importLine)) {
+                    imports.push(importLine);
+                }
+
+                if (!_imports.includes('ManyToMany')) _imports.push('ManyToMany');
+                if (!_imports.includes('JoinTable')) _imports.push('JoinTable');
+
+                entityCode.push(`\t@ManyToMany(() => ${targetEntity})`);
+                entityCode.push(`\t@JoinTable()`);
+                entityCode.push(`\tom${propName}!: ${targetEntity}[];\n`);
             }
 
             const Code = [
