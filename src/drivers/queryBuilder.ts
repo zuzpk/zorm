@@ -16,7 +16,9 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     private whereCount: number = 0;
     private isActiveRecord: boolean = false;
     private activeRecord : T | null
-    
+    private joinedAliases: Record<string, string> = {};
+    // private currentWhereLogic: 'AND' | 'OR' = 'AND';
+
     constructor(repository: Repository<T>, _action: QueryAction, _usePromise?: boolean) {
         super(() => {}); // Required for extending Promise
         this.repository = repository;
@@ -166,13 +168,12 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
             const paramKey = `${key}Param${index}_${this.whereCount}`; // Unique parameter name
 
             let sqlOperator = "="; // Default to "="
-
+            
             if (typeof value === "string") {
                 const match = value.match(/^(!=|>=|<=|>|<|=)\s*(.+)$/); // Improved regex
                 if (match) {
                     const [, operator, rawValue] = match;
-                    const sqlOperator = operator; // Directly use the matched operator
-
+                    sqlOperator = operator; // Directly use the matched operator
                     const parsedValue = !isNaN(Number(rawValue)) ? Number(rawValue) : rawValue.trim(); // Convert to number if possible
 
                     qb[type](`${qb.alias}.${key} ${sqlOperator} :${paramKey}`, { [paramKey]: parsedValue });
@@ -321,6 +322,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         } else {
             (this.queryBuilder as  SelectQueryBuilder<T>).innerJoin(`${this.entityAlias}.${relation}`, alias);
         }
+        this.joinedAliases[alias] = relation;
         return this;
     }
 
@@ -337,6 +339,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
         } else {
             (this.queryBuilder as  SelectQueryBuilder<T>).leftJoin(`${this.entityAlias}.${relation}`, alias);
         }
+        this.joinedAliases[alias] = relation;
         return this;
     }
 

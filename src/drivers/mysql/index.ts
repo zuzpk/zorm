@@ -187,13 +187,19 @@ export class MySqlDriver implements ModelGenerator {
         }
 
         // Track inverse relations: { tableName: { fkColumn: targetTable } }
-        const inverseRelations: Record<string, { fkColumn: string; targetTable: string; targetEntity: string }[]> = {};
+        const inverseRelations: Record<string, { 
+            fkColumn: string; 
+            fkPropName: string;
+            targetTable: string; 
+            targetEntity: string 
+        }[]> = {};
 
         // Populate inverse map
         for (const [tableName, fks] of Object.entries(foreignKeys)) {
             for (const fk of fks) {
                 const targetTable = fk.REFERENCED_TABLE_NAME;
                 const fkColumn = fk.COLUMN_NAME;
+                const fkPropName = `fk${toPascalCase(targetTable)}`;
 
                 if (!inverseRelations[targetTable]) {
                     inverseRelations[targetTable] = [];
@@ -201,8 +207,9 @@ export class MySqlDriver implements ModelGenerator {
 
                 inverseRelations[targetTable].push({
                     fkColumn,
+                    fkPropName,
                     targetTable: tableName,
-                    targetEntity: toPascalCase(tableName)
+                    targetEntity: toPascalCase(tableName),
                 });
             }
         }
@@ -328,20 +335,21 @@ export class MySqlDriver implements ModelGenerator {
             // Add OneToMany Relations
             const inverse = inverseRelations[String(tableName)] || [];
             for (const rel of inverse) {
-                const propName = rel.targetTable.endsWith('s') ? rel.targetTable : `${rel.targetTable}s`;
 
-                // Avoid duplicate
-                if (entityCode.some(line => line.includes(`@${propName}`))) continue;
+                const propName = rel.targetTable.endsWith('s') ? rel.targetTable : `${rel.targetTable}s`;
+                if (entityCode.some(line => line.includes(` ${propName}!:`))) continue;
 
                 const importLine = `import { ${rel.targetEntity} } from "./${rel.targetTable}";`;
-                if (!imports.includes(importLine)) {
-                    imports.push(importLine);
-                }
+                if (!imports.includes(importLine)) imports.push(importLine);
 
                 if (!_imports.includes('OneToMany')) _imports.push('OneToMany');
 
-                entityCode.push(`\t@OneToMany(() => ${rel.targetEntity}, r => r.${rel.fkColumn})`);
+                // CORRECT: Inverse is fk + referenced table (e.g. fkUsers)
+                entityCode.push(`\t@OneToMany(() => ${rel.targetEntity}, r => r.${rel.fkPropName})`);
                 entityCode.push(`\tfk${toPascalCase(propName)}!: ${rel.targetEntity}[];\n`);
+                // entityCode.push(`\t@OneToMany(() => ${targetEntity}, r => r.${rel.fkColumn})`);
+                // entityCode.push(`\tfk${toPascalCase(propName)}!: ${targetEntity}[];\n`);
+
             }
 
             // Add Many-to-Many Relations
@@ -392,8 +400,28 @@ export class MySqlDriver implements ModelGenerator {
                 Code.join(`\n`)
             );
 
+            
         }
+        
+        // Write entry file i.e index.ts
+        const entry = tableNames
+                .map(tableName => `import { ${toPascalCase(tableName as string)} } from "./${tableName}";`)
 
+        entry.push(
+            `import Zorm from "@zuzjs/orm";`,
+            `import de from "dotenv";`,
+            `de.config()`,
+            `const zorm = Zorm.get(process.env.DATABASE_URL!);`,
+            `zorm.connect([${tableNames.map(t => toPascalCase(t as string)).join(`, `)}]);`,
+            `export default zorm`,
+            `export { ${tableNames.map(t => toPascalCase(t as string)).join(`, `)} }`,
+        )
+                
+        fs.writeFileSync(
+            path.join( this.dist!, `index.ts`), 
+            entry.join(`\n`)
+        );
+        
         await self.pool!.end()
 
         console.log( pc.green( `✓ ${tables.length} Tables Processed.`) );
