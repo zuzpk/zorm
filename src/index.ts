@@ -36,6 +36,8 @@ class Zorm {
      */
     private usePromise: boolean = false;
     
+    private _init!: () => Promise<DataSource>;
+
     /**
      * Private constructor to enforce singleton pattern.
      * @param {string} connectionString - The database connection string.
@@ -43,7 +45,12 @@ class Zorm {
      * @param {boolean} [usePromise] - Whether to use Promises for queries.
      * @private
      */
-    private constructor(connectionString: string, entitiesPath?: string | null, usePromise?: boolean){
+    private constructor(
+        connectionString: string, 
+        entities?: MixedList<string | Function | EntitySchema<any>>,
+        entitiesPath?: string | null, 
+        usePromise?: boolean
+    ){
 
         const _dist = entitiesPath || path.join(`src`, `zorm`)
         const dist = path.join(process.cwd(), _dist)
@@ -59,14 +66,19 @@ class Zorm {
                 const driver = new MySqlDriver(decodeURIComponent(connectionString))
                 const conn = driver.connection()
 
+                
+                    
                 this.dataSource = new DataSource({
                     type: "mysql",
                     username: conn.user,
                     password: conn.password,
                     host: conn.host,
                     port: Number(conn.port),
-                    database: conn.database
+                    database: conn.database,
+                    entities: entities || []
                 })
+
+                this._init = this.dataSource.initialize.bind(this.dataSource)
         
         }
         else{
@@ -83,9 +95,14 @@ class Zorm {
      * @param {boolean} [usePromise] - Whether to use Promises for queries.
      * @returns {Zorm} The singleton instance of Zorm.
      */
-    static get(connectionString: string, entitiesPath?: string | null, usePromise?: boolean){
+    static get(
+        connectionString: string, 
+        entities?: MixedList<string | Function | EntitySchema<any>>,
+        entitiesPath?: string | null, 
+        usePromise?: boolean
+    ){
         if ( !Zorm.instance ){
-            Zorm.instance = new Zorm(connectionString, entitiesPath!, usePromise)
+            Zorm.instance = new Zorm(connectionString, entities, entitiesPath!, usePromise)
         }
 
         return Zorm.instance
@@ -96,11 +113,13 @@ class Zorm {
      * @param {MixedList<string | Function | EntitySchema<any>>} entities - List of entity schemas.
      * @returns {Promise<void>} Resolves when the connection is initialized.
      */
-    async connect(entities: MixedList<string | Function | EntitySchema<any>>){
+    async connect(entities?: MixedList<string | Function | EntitySchema<any>>){
         if ( !this.initialized ){
             try{
-                this.dataSource.setOptions({ entities })
-                await this.dataSource.initialize()       
+                if (entities && !this.dataSource.options.entities?.length) {
+                    this.dataSource.setOptions({ entities });
+                }
+                await this._init()
                 this.initialized = true
                 console.log(pc.green("○ Zorm is connected"))
             }
@@ -108,6 +127,57 @@ class Zorm {
                 console.log(pc.red("○ Error while connecting to your MySQL Server with following error:"), e)
             }
         }
+    }
+
+    whenReady<T = this>(): T {
+
+        if (this.initialized) return this as any;
+
+        const handler: ProxyHandler<this> = {
+            get: (target, prop: string) => {
+                if (prop === 'then') return undefined;
+                const value = (target as any)[prop];
+                if (typeof value === 'function') {
+                    return (...args: any[]) => {
+
+                        const result = value.apply(target, args);
+
+                        if (result && result.constructor.name === 'ZormQueryBuilder') {
+                            return this.wrapQueryBuilder(result);
+                        }
+
+                        this._init().then(() => result);
+                    }
+                }
+                return value;
+            }
+        };
+
+        return new Proxy(this, handler) as any
+    }
+
+    private wrapQueryBuilder<T>(qb: any): any {
+        const handler: ProxyHandler<any> = {
+            get: (target, prop: string) => {
+                if (prop === 'then') return undefined;
+
+                const value = target[prop];
+                if (typeof value === 'function') {
+                    return (...args: any[]) => {
+                        const result = value.apply(target, args);
+                        // Chain: if returns new QB, wrap it
+                        if (result && result.constructor.name === 'ZormQueryBuilder') {
+                            return this.wrapQueryBuilder(result);
+                        }
+                        // Final: return Promise
+                        return this._init().then(() => result);
+                    };
+                }
+                return value;
+            }
+        };
+
+        return new Proxy(qb, handler);
     }
 
     /**
