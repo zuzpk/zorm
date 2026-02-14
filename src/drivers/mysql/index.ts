@@ -2,6 +2,7 @@ import fs from 'fs';
 import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import path from 'path';
 import pc from "picocolors";
+import { ValueTransformer } from 'typeorm';
 import { isNumber, toPascalCase } from '../../core/index.js';
 import { ConnectionDetails, ModelGenerator } from '../../types.js';
 
@@ -19,6 +20,32 @@ export const parseConnectionString = (connectionString: string) => {
 
     return { user, password, host, port: port ? Number(port) : 3306, database, params: queryParams };
 };
+
+export class BooleanTransformer implements ValueTransformer {
+    // Converts the entity value (boolean) to the database value (e.g., tinyint/bit 0 or 1)
+    to(value: boolean | null): number | null {
+        if (value === null || value === undefined) return null;
+        return value ? 1 : 0;
+    }
+
+    // Converts the database value (e.g., 0 or 1) to the entity value (boolean)
+    from(value: number | null): boolean | null {
+        if (value === null || value === undefined) return null;
+        return value === 1;
+    }
+}
+
+export class BigIntTransformer implements ValueTransformer {
+    // We send it as a string so the DB driver handles the large digits correctly
+    to(value: string | bigint | null): string | null {
+        return value !== null && value !== undefined ? String(value) : null;
+    }
+
+    // MySQL driver might return a string or number; we force it to string for TS safety
+    from(value: string | number | null): string | null {
+        return value !== null && value !== undefined ? String(value) : null;
+    }
+}
 
 export const MySQLErrorMap : Record<string, string> = {
     ER_DUP_ENTRY: "DuplicateEntry",
@@ -113,27 +140,29 @@ export class MySqlDriver implements ModelGenerator {
         }
     }
 
-    mapColumns(sqlType: string): { tsType: string; columnType: string; length?: number; enumValues?: string[] } {
+    mapColumns(sqlType: string): { tsType: string; columnType: string; length?: number; enumValues?: string[]; transformer?: string } {
 
-        const typeMap: Record<string, { tsType: string; columnType: string; length?: number }> = {
-            "int": { tsType: "number", columnType: "int" },
-            "tinyint": { tsType: "boolean", columnType: "tinyint" },
-            "smallint": { tsType: "number", columnType: "smallint" },
-            "mediumint": { tsType: "number", columnType: "mediumint" },
-            "bigint": { tsType: "number", columnType: "bigint" }, // bigint is safer as string
-            "decimal": { tsType: "number", columnType: "decimal" },
-            "float": { tsType: "number", columnType: "float" },
-            "double": { tsType: "number", columnType: "double" },
-            "varchar": { tsType: "string", columnType: "varchar", length: 255 },
-            "text": { tsType: "string", columnType: "text" },
-            "longtext": { tsType: "string", columnType: "longtext" },
-            "char": { tsType: "string", columnType: "char", length: 1 },
-            "datetime": { tsType: "Date", columnType: "datetime" },
-            "timestamp": { tsType: "Date", columnType: "timestamp" },
-            "date": { tsType: "Date", columnType: "date" },
-            "time": { tsType: "string", columnType: "time" },
-            "json": { tsType: "any", columnType: "json" },
-        };
+        const typeMap: Record<string, { tsType: string; columnType: string; length?: number; transformer?: string }> = {
+                "int": { tsType: "number", columnType: "int" },
+                "tinyint": { tsType: "boolean", columnType: "tinyint", transformer: "BooleanTransformer" },
+                "smallint": { tsType: "number", columnType: "smallint" },
+                "mediumint": { tsType: "number", columnType: "mediumint" },
+                "bigint": { tsType: "string", columnType: "bigint", transformer: "BigIntTransformer" },
+                "decimal": { tsType: "number", columnType: "decimal" },
+                "float": { tsType: "number", columnType: "float" },
+                "double": { tsType: "number", columnType: "double" },
+                "varchar": { tsType: "string", columnType: "varchar", length: 255 },
+                "char": { tsType: "string", columnType: "char", length: 1 },
+                "tinytext": { tsType: "string", columnType: "tinytext" },
+                "text": { tsType: "string", columnType: "text" },
+                "mediumtext": { tsType: "string", columnType: "mediumtext" },
+                "longtext": { tsType: "string", columnType: "longtext" },
+                "datetime": { tsType: "Date", columnType: "datetime" },
+                "timestamp": { tsType: "Date", columnType: "timestamp" },
+                "date": { tsType: "Date", columnType: "date" },
+                "time": { tsType: "string", columnType: "time" },
+                "json": { tsType: "any", columnType: "json" },
+            };
 
         const enumMatch = sqlType.match(/^enum\((.*)\)$/i);
         if (enumMatch) {
@@ -145,12 +174,28 @@ export class MySqlDriver implements ModelGenerator {
         }
 
         const match = sqlType.match(/^(\w+)(?:\((\d+)\))?/);
-        if (!match) return { tsType: "any", columnType: "varchar", length: 255 };
+        if (!match) return { tsType: "any", columnType: "text" };
 
         const baseType = match[1].toLowerCase();
         const length = match[2] ? parseInt(match[2], 10) : undefined;
 
-        return typeMap[baseType] ? { ...typeMap[baseType], length: length || typeMap[baseType].length } : { tsType: "any", columnType: "varchar", length: 255 };
+        const config = typeMap[baseType] || { tsType: "any", columnType: baseType };
+    
+        return { 
+            ...config, 
+            // Only apply length if it's varchar/char or explicitly defined in the DB
+            length: baseType.includes("char") ? (length || config.length) : undefined 
+        };
+
+        // return typeMap[baseType] ? 
+        //     { 
+        //         ...typeMap[baseType], 
+        //         length: length || typeMap[baseType].length 
+        //     } 
+        //     : { 
+        //         tsType: "any", 
+        //         columnType: baseType || "varchar"
+        //     };
     }
 
     formatDefault(value: any, tsType: string): string | number {
@@ -266,7 +311,7 @@ export class MySqlDriver implements ModelGenerator {
             for (const column of columns) {
                 // console.log(tableName, column)
                 const { Field, Type, Key, Null, Default, Extra, Comment } = column;
-                const { tsType, columnType, length, enumValues } = this.mapColumns(Type);
+                const { tsType, columnType, length, enumValues, transformer } = this.mapColumns(Type);
                 
                 let enumName : string | null = null
 
@@ -283,33 +328,88 @@ export class MySqlDriver implements ModelGenerator {
                 if (Key === "PRI") {
                     const _priColumn = Extra.includes("auto_increment") ? `PrimaryGeneratedColumn` : `PrimaryColumn`
                     if ( !_imports.includes(_priColumn) ) _imports.push(_priColumn);
-                    entityCode.push(`\t@${_priColumn}()`);
+                    if ( transformer ){
+                        if (!_imports.includes(transformer)) _imports.push(transformer);
+                        entityCode.push(`\t@${_priColumn}({ transformer: new ${transformer}() })`);
+                    }
+                    else entityCode.push(`\t@${_priColumn}()`);
                     hasPrimary = true
                 }
                 else {
 
-                    // const hasForeignKey = foreignKeys[tableName as string].find((fk) => fk.COLUMN_NAME === Field);
-                    // let columnDecorator = hasForeignKey ? `\t@JoinColumn({ type: "${columnType}"` : `\t@Column({ type: "${columnType}"`;
-                    let columnDecorator = `\t@Column({ type: "${columnType}"`;
-                    
                     if ( !_imports.includes(`Column`) ) _imports.push(`Column`);
 
-                    if (length) columnDecorator += `, length: ${length}`;
-                    if (Null === "YES") columnDecorator += `, nullable: true`;
-                    if (enumName) columnDecorator += `, enum: ${enumName}`;
-                    if (Default !== null) columnDecorator += `, default: ${this.formatDefault(Default, tsType)}`;
-    
-                    columnDecorator += ` })`;
-                    entityCode.push(columnDecorator);
+                    const columnOptions: string[] = [`type: "${columnType}"`];
+                    if (length) columnOptions.push(`length: ${length}`);
+                    if (Null === "YES") columnOptions.push(`nullable: true`);
+                    if (enumName) columnOptions.push(`enum: ${enumName}`);
+                    if (Default !== null) columnOptions.push(`default: ${this.formatDefault(Default, tsType)}`);
+                    if (transformer) {
+                        if (!_imports.includes(transformer)) _imports.push(transformer);
+                        columnOptions.push(`transformer: new ${transformer}()`);
+                    }
+
+                    entityCode.push(`\t@Column({ ${columnOptions.join(", ")} })`);
                 }
 
                 if ( Comment && Comment.length > 0 ){
                     entityCode.push(`\t/** @comment ${Comment} */`);
                 }
                 
-                entityCode.push(`\t${Field}!: ${enumName ? enumName : Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
+                const finalTsType = enumName || tsType
+                entityCode.push(`\t${Field}!: ${finalTsType};\n`)
+                // entityCode.push(`\t${Field}!: ${enumName ? enumName : Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
                 
             }
+            // for (const column of columns) {
+            //     // console.log(tableName, column)
+            //     const { Field, Type, Key, Null, Default, Extra, Comment } = column;
+            //     const { tsType, columnType, length, enumValues } = this.mapColumns(Type);
+                
+            //     let enumName : string | null = null
+
+            //     if (columnType === "enum" && enumValues) {
+
+            //         enumName = toPascalCase(Field);
+            //         enums.push(`export enum ${enumName} { ${enumValues.map(v => {
+            //             return `${isNumber(v) ? `val${v}` : toPascalCase(v)} = "${v}"`
+            //         }).join(", ")} }`);
+
+            //     }
+
+            //     // Handle primary key
+            //     if (Key === "PRI") {
+            //         const _priColumn = Extra.includes("auto_increment") ? `PrimaryGeneratedColumn` : `PrimaryColumn`
+            //         if ( !_imports.includes(_priColumn) ) _imports.push(_priColumn);
+            //         entityCode.push(`\t@${_priColumn}()`);
+            //         hasPrimary = true
+            //     }
+            //     else {
+
+            //         // const hasForeignKey = foreignKeys[tableName as string].find((fk) => fk.COLUMN_NAME === Field);
+            //         // let columnDecorator = hasForeignKey ? `\t@JoinColumn({ type: "${columnType}"` : `\t@Column({ type: "${columnType}"`;
+            //         let columnDecorator = `\t@Column({ type: "${columnType}"`;
+                    
+            //         if ( !_imports.includes(`Column`) ) _imports.push(`Column`);
+
+            //         if (length) columnDecorator += `, length: ${length}`;
+            //         if (Null === "YES") columnDecorator += `, nullable: true`;
+            //         if (enumName) columnDecorator += `, enum: ${enumName}`;
+            //         if (Default !== null) columnDecorator += `, default: ${this.formatDefault(Default, tsType)}`;
+    
+            //         columnDecorator += ` })`;
+            //         entityCode.push(columnDecorator);
+            //     }
+
+            //     if ( Comment && Comment.length > 0 ){
+            //         entityCode.push(`\t/** @comment ${Comment} */`);
+            //     }
+                
+            //     const finalTsType = enumName || tsType
+            //     entityCode.push(`\t${Field}!: ${finalTsType};\n`)
+            //     // entityCode.push(`\t${Field}!: ${enumName ? enumName : Key == `PRI` && numberTypes.includes(Type) ? `number` : numberTypes.includes(Type) ? `number` : tsType};\n`)
+                
+            // }
 
             // Add foreign key relationships
             if ( foreignKeys[tableName as string] ){

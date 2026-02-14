@@ -1,6 +1,6 @@
 import { ObjectLiteral } from "typeorm"
 
-export type dynamicObject = { 
+export type dynamic= { 
     [x: string] : any 
 }
 
@@ -16,7 +16,7 @@ export type ConnectionDetails = {
     user: string, 
     password: string, 
     database: string,
-    params: dynamicObject
+    params: dynamic
 }
 
 export type QueryAction = "create" | "upsert" | "select" | "update" | "delete"

@@ -1,51 +1,70 @@
 {
-    "name": "@zuzjs/orm",
-    "version": "0.3.7",
-    "keywords": [
-        "orm",
-        "zuz",
-        "zuz.js",
-        "zuz orm",
-        "zuzjs"
-    ],
-    "description": "ZuzJS ORM Library",
-    "author": "Zuz.js Team <support@zuz.com.pk>",
-    "license": "MIT",
-    "type": "commonjs",
-    "main": "dist/index.js",
-    "bin": {
-        "zorm": "dist/bin.js"
-    },
-    "exports": {
-        ".": "./dist/index.js"
-    },
-    "files": [
-        "dist"
-    ],
-    "scripts": {
-        "dev": "tsc -d -w -p tsconfig.json"
-    },
-    "engines": {
-        "node": ">=18.17.0"
-    },
-    "sideEffects": ["reflect-metadata"],
-    "dependencies": {
-        "@types/md5": "^2.3.5",
-        "commander": "14.0.0",
-        "md5": "^2.3.0",
-        "mysql2": "3.14.1",
-        "nanoid": "5.1.5",
-        "picocolors": "^1.1.1",
-        "reflect-metadata": "^0.2.2",
-        "typeorm": "^0.3.25"
-    },
-    "devDependencies": {
-        "husky": "^9.1.7",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.8.3"
-    },
-    "peerDependencies": {
-        "reflect-metadata": "^0.2.2",
-        "typeorm": "^0.3.25"
+  "name": "@zuzjs/orm",
+  "version": "0.3.9",
+  "description": "ZuzJS ORM Library",
+  "keywords": [
+    "orm",
+    "zuz",
+    "zuz.js",
+    "zuz orm",
+    "zuzjs"
+  ],
+  "homepage": "https://orm.zuz.com.pk",
+  "bugs": {
+    "url": "https://github.com/zuzpk/zorm/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zuzpk/zorm.git"
+  },
+  "author": "Zuz.js Team <support@zuz.com.pk>",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "zorm": "./dist/bin.cjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev:js": "tsup --watch",
+    "dev": "npm-run-all -p dev:*",
+    "build": "rm -rf dist && tsup",
+    "publish": "npm run build && node publish-pre.js && npm publish && node publish-post.js"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "sideEffects": [
+    "reflect-metadata"
+  ],
+  "dependencies": {
+    "@types/md5": "^2.3.6",
+    "commander": "14.0.3",
+    "md5": "^2.3.0",
+    "mysql2": "3.17.1",
+    "nanoid": "5.1.6",
+    "picocolors": "^1.1.1",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.28"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.28"
+  }
 }
