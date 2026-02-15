@@ -85,6 +85,11 @@ class ZormExprBuilder<T extends ObjectLiteral> {
         return this;
     }
 
+    and(): this {
+        this._parts.push(`AND`);
+        return this;
+    }
+
     group() { 
         return this.wrap(e => `(${e})`); 
     }
