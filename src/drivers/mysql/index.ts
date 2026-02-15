@@ -144,7 +144,7 @@ export class MySqlDriver implements ModelGenerator {
 
         const typeMap: Record<string, { tsType: string; columnType: string; length?: number; transformer?: string }> = {
                 "int": { tsType: "number", columnType: "int" },
-                "tinyint": { tsType: "boolean", columnType: "tinyint", transformer: "BooleanTransformer" },
+                // "tinyint": { tsType: "boolean", columnType: "tinyint", transformer: "BooleanTransformer" },
                 "smallint": { tsType: "number", columnType: "smallint" },
                 "mediumint": { tsType: "number", columnType: "mediumint" },
                 "bigint": { tsType: "string", columnType: "bigint", transformer: "BigIntTransformer" },
@@ -179,6 +179,14 @@ export class MySqlDriver implements ModelGenerator {
         const baseType = match[1].toLowerCase();
         const length = match[2] ? parseInt(match[2], 10) : undefined;
 
+        if (baseType === "tinyint") {
+            if (length === 1) {
+                return { tsType: "boolean", columnType: "tinyint", transformer: "BooleanTransformer" };
+            }
+            // If width > 1, it's a number (like your CollaboratorAccess enum)
+            return { tsType: "number", columnType: "tinyint" };
+        }
+        
         const config = typeMap[baseType] || { tsType: "any", columnType: baseType };
     
         return { 
