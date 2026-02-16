@@ -83,7 +83,7 @@ class ZormExprBuilder<T extends ObjectLiteral> {
     or(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
 
         if ( sub){
-            const subQ = new ZormExprBuilder<T>(undefined, { params: this._params, idx: this._paramIdx });
+            const subQ = new ZormExprBuilder<T>(this._alias, { params: this._params, idx: this._paramIdx });
             sub(subQ);
             this._parts.push(`OR (${subQ.buildExpression()})`);
             this._paramIdx = subQ._paramIdx;
@@ -97,7 +97,7 @@ class ZormExprBuilder<T extends ObjectLiteral> {
     and(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
 
         if ( sub){
-            const subQ = new ZormExprBuilder<T>(undefined, { params: this._params, idx: this._paramIdx });
+            const subQ = new ZormExprBuilder<T>(this._alias, { params: this._params, idx: this._paramIdx });
             sub(subQ);
             this._parts.push(`AND (${subQ.buildExpression()})`);
             this._paramIdx = subQ._paramIdx;
