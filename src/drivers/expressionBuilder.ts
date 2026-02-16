@@ -17,18 +17,148 @@ class ZormExprBuilder<T extends ObjectLiteral> {
         this._params = parent ? parent.params : {};
     }
 
+    private _applyOperator(operator: string, value: any): this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` ${operator} :${key}`);
+        this._params[key] = value;
+        return this;
+    }
+
     field(col: keyof T | string): this {
         this._parts.push(`${this._alias}${String(col)}`);
         return this;
     }
 
-    equals(value: any): this {
+    equals(value: any) : this {
+        return this._applyOperator(`=`, value)
+    }
+    
+    greaterThan(value: any) : this {
+        return this._applyOperator(`>`, value)
+    }
+
+    lessThan(value: any) : this {
+        return this._applyOperator(`<`, value)
+    }
+
+    greaterThanAndEqualTo(value: any) : this {
+        return this._applyOperator(`>=`, value)
+    }
+
+    lessThanAndEqualTo(value: any) : this {
+        return this._applyOperator(`<=`, value)
+    }
+
+    notEquals(value: any) : this {
+        return this._applyOperator(`!=`, value)
+    }
+
+    between(start: any, end: any): this {
+        const keyStart = `p${this._paramIdx++}`;
+        const keyEnd = `p${this._paramIdx++}`;
+        
+        this.append(` BETWEEN :${keyStart} AND :${keyEnd}`);
+        
+        this._params[keyStart] = start;
+        this._params[keyEnd] = end;
+        
+        return this;
+    }
+
+    in(values: any[]): this {
+        if (!Array.isArray(values) || values.length === 0) {
+            // Optional: Handle empty arrays to prevent SQL syntax errors
+            // Usually, "IN (NULL)" or forcing a false condition is safest
+            this.append(` IN (NULL)`);
+            return this;
+        }
+
         const key = `p${this._paramIdx++}`;
-        this.append(` = :${key}`);
-        // this._parts[this._parts.length - 1] += ` = :${key}`;
+        // TypeORM uses the :...key syntax to expand arrays into (val1, val2, ...)
+        this.append(` IN (:...${key})`);
+        this._params[key] = values;
+
+        return this;
+    }
+
+    notIn(values: any[]): this {
+        if (!Array.isArray(values) || values.length === 0) {
+            this.append(` NOT IN (NULL)`);
+            return this;
+        }
+
+        const key = `p${this._paramIdx++}`;
+        this.append(` NOT IN (:...${key})`);
+        this._params[key] = values;
+
+        return this;
+    }
+
+    isNull(): this {
+        this.append(` IS NULL`);
+        return this;
+    }
+
+    isNotNull(): this {
+        this.append(` IS NOT NULL`);
+        return this;
+    }
+
+    like(value: string): this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` LIKE :${key}`);
+        this._params[key] = value; // Expects user to provide "%" wildcards
+        return this;
+    }
+
+    /**
+     * MySQL Full-Text Search
+     * @param columns Optional array of columns. If omitted, uses the field defined by .field()
+     */
+    match(value: string, columns?: string[]): this {
+        const key = `p${this._paramIdx++}`;
+        
+        // If columns are provided, we replace the last part (the field) with the MATCH syntax
+        if (columns && columns.length > 0) {
+            const cols = columns.map(c => c.includes('.') ? c : `${this._alias}${c}`).join(', ');
+            this._parts[this._parts.length - 1] = `MATCH(${cols})`;
+        } else {
+            // Otherwise, wrap the existing field in MATCH()
+            this.wrap(expr => `MATCH(${expr})`);
+        }
+
+        this.append(` AGAINST (:${key} IN BOOLEAN MODE)`);
         this._params[key] = value;
         return this;
     }
+
+    contains(value: string): this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` LIKE :${key}`);
+        this._params[key] = `%${value}%`;
+        return this;
+    }
+
+    startsWith(value: string): this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` LIKE :${key}`);
+        this._params[key] = `${value}%`;
+        return this;
+    }
+
+    endsWith(value: string): this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` LIKE :${key}`);
+        this._params[key] = `%${value}`;
+        return this;
+    }
+
+    // equals(value: any): this {
+    //     const key = `p${this._paramIdx++}`;
+    //     this.append(` = :${key}`);
+    //     this._params[key] = value;
+    //     return this;
+    // }
 
     append(extra: string): this {
         if (this._parts.length === 0) throw new Error("Cannot append to empty expression");
@@ -83,7 +213,7 @@ class ZormExprBuilder<T extends ObjectLiteral> {
     or(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
 
         if ( sub){
-            const subQ = new ZormExprBuilder<T>(this._alias, { params: this._params, idx: this._paramIdx });
+            const subQ = new ZormExprBuilder<T>(this._alias.endsWith(`.`) ? this._alias.slice(0, -1) : this._alias, { params: this._params, idx: this._paramIdx });
             sub(subQ);
             this._parts.push(`OR (${subQ.buildExpression()})`);
             this._paramIdx = subQ._paramIdx;
@@ -97,7 +227,7 @@ class ZormExprBuilder<T extends ObjectLiteral> {
     and(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
 
         if ( sub){
-            const subQ = new ZormExprBuilder<T>(this._alias, { params: this._params, idx: this._paramIdx });
+            const subQ = new ZormExprBuilder<T>(this._alias.endsWith(`.`) ? this._alias.slice(0, -1) : this._alias, { params: this._params, idx: this._paramIdx });
             sub(subQ);
             this._parts.push(`AND (${subQ.buildExpression()})`);
             this._paramIdx = subQ._paramIdx;
