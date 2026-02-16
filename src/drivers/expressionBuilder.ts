@@ -80,12 +80,30 @@ class ZormExprBuilder<T extends ObjectLiteral> {
     //     Object.assign(this._params, param);
     //     return this;
     // }
-    or(): this {
+    or(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
+
+        if ( sub){
+            const subQ = new ZormExprBuilder<T>(undefined, { params: this._params, idx: this._paramIdx });
+            sub(subQ);
+            this._parts.push(`OR (${subQ.buildExpression()})`);
+            this._paramIdx = subQ._paramIdx;
+            return this;
+        }
+
         this._parts.push(`OR`);
         return this;
     }
 
-    and(): this {
+    and(sub?: (q: ZormExprBuilder<T>) => ZormExprBuilder<T>): this {
+
+        if ( sub){
+            const subQ = new ZormExprBuilder<T>(undefined, { params: this._params, idx: this._paramIdx });
+            sub(subQ);
+            this._parts.push(`AND (${subQ.buildExpression()})`);
+            this._paramIdx = subQ._paramIdx;
+            return this;
+        }
+
         this._parts.push(`AND`);
         return this;
     }
