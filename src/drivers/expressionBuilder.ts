@@ -29,6 +29,13 @@ class ZormExprBuilder<T extends ObjectLiteral> {
         return this;
     }
 
+    compare(value: any, operator: `=` | `>` | `<` | `>=` | `<=` | `!=`) : this {
+        const key = `p${this._paramIdx++}`;
+        this.append(` ${operator} :${key}`);
+        this._params[key] = value;
+        return this;
+    }
+
     equals(value: any) : this {
         return this._applyOperator(`=`, value)
     }

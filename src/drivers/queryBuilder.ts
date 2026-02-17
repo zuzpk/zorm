@@ -300,14 +300,52 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
     }
 
     /**
+     * Adds relations to be included in the query with optional conditions.
+     * @example .withRelation("fkTeams", { "fkTeams.status": 1 })
+     */
+    withRelation(rel: string | Record<string, PartialConditions<any>>, ...more: string[]): this {
+        const qb = this.queryBuilder as SelectQueryBuilder<T>;
+
+        if (typeof rel === "string") {
+            // Handle standard string-based relations
+            [rel, ...more].forEach(relation => 
+                qb.leftJoinAndSelect(`${this.entityAlias}.${relation}`, relation)
+            );
+        } else {
+            // Handle object-based relations with conditions: { "fkTeams": { status: 1 } }
+            Object.entries(rel).forEach(([relation, condition]) => {
+                const alias = relation;
+                let conditionString = "";
+                const params: Record<string, any> = {};
+
+                // Build the condition string for the JOIN
+                Object.entries(condition).forEach(([key, value], idx) => {
+                    const paramKey = `rel_${alias}_${key}_${idx}`;
+                    const prefix = conditionString === "" ? "" : " AND ";
+                    conditionString += `${prefix}${alias}.${key} = :${paramKey}`;
+                    params[paramKey] = value;
+                });
+
+                qb.leftJoinAndSelect(
+                    `${this.entityAlias}.${relation}`, 
+                    alias, 
+                    conditionString !== "" ? conditionString : undefined,
+                    params
+                );
+            });
+        }
+        return this;
+    }
+
+    /**
      * Adds relations to be included in the query.
      * @param relations - The relations to be included.
      * @returns The current instance of ZormQueryBuilder.
      */
-    withRelation(rel : string, ...more: string[]): this {
-        [ rel, ...more ].forEach(relation => (this.queryBuilder as  SelectQueryBuilder<T>).leftJoinAndSelect(`${this.entityAlias}.${relation}`, relation));
-        return this;
-    }
+    // withRelation(rel : string, ...more: string[]): this {
+    //     [ rel, ...more ].forEach(relation => (this.queryBuilder as  SelectQueryBuilder<T>).leftJoinAndSelect(`${this.entityAlias}.${relation}`, relation));
+    //     return this;
+    // }
 
     /**
      * Adds an INNER JOIN clause to the query.

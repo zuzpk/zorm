@@ -1,6 +1,6 @@
 {
   "name": "@zuzjs/orm",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "ZuzJS ORM Library",
   "keywords": [
     "orm",
