@@ -576,7 +576,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     }
 
                     if ( this.isActiveRecord ){
-                        _result.save = () => this._saveActiveRecord(_select[0])
+                        _result.save = async () => this._saveActiveRecord(_select[0])
                     }
                     
                     return _result as R
