@@ -96,13 +96,16 @@ export type InsertQueryResult = {
     error?: QueryError
 }
 
-export type SelectQueryResult = {
+export type SelectQueryResult<T = any> = {
     hasRows: boolean,
     count?: number,
     row?: any,
     rows?: any[],
     error?: QueryError,
-    save?: () => void
+    /** Saves the current state of 'row' to the database */
+    save?: () => Promise<T | null>;
+    /** Updates multiple fields on 'row' simultaneously */
+    patch?: (data: Partial<T>) => T | null;
 }
 
 export type UpdateQueryResult = {

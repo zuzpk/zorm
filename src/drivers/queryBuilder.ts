@@ -568,7 +568,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 default:
                     const _select = await (this.queryBuilder as SelectQueryBuilder<T>).getMany()
                     
-                    const _result : SelectQueryResult = {
+                    const _result : SelectQueryResult<T> = {
                         hasRows: _select.length > 0,
                         count: _select.length,
                         row: _select.length > 0 ? _select[0] : null,
@@ -576,7 +576,30 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     }
 
                     if ( this.isActiveRecord ){
-                        _result.save = async () => this._saveActiveRecord(_select[0])
+
+                        /**
+                         * Safely saves the current state of .row
+                         */
+                        _result.save = async () => {
+                            if (!_result.row) throw new Error("○ No record found to save.");
+                            return this._saveActiveRecord(_result.row);
+                        };
+                        // _result.save = async () => this._saveActiveRecord(_select[0])
+
+                        /**
+                         * Updates multiple fields on the current row and returns the row.
+                         * Works with both mutation and reference replacement.
+                         */
+                        _result.patch = (data: Partial<T>) => {
+                            
+                            if (!_result.row) return null;
+                            
+                            // We mutate the existing reference to be safe, 
+                            // but return it for easy chaining.
+                            Object.assign(_result.row, data);
+                            return _result.row;
+                        };
+
                     }
                     
                     return _result as R
