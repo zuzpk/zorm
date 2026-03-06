@@ -103,19 +103,24 @@ export type SelectQueryResult<T = ObjectLiteral> = (
         row: T;
         rows: T[];
         count: number;
+        /** Saves the current state of 'row' to the database */
+        save?: () => Promise<T | null>;
+        /** Updates multiple fields on 'row' simultaneously */
+        patch?: (data: Partial<T>) => T | null;
       }
     | {
         hasRows: false;
         row?: never;
         rows: [];
         count: 0;
+        /** Saves the current state of 'row' to the database */
+        save?: never;
+        /** Updates multiple fields on 'row' simultaneously */
+        patch?: never;
       }
 ) & {
     error?: QueryError,
-    /** Saves the current state of 'row' to the database */
-    save?: () => Promise<T | null>;
-    /** Updates multiple fields on 'row' simultaneously */
-    patch?: (data: Partial<T>) => T | null;
+    
 }
 
 export type UpdateQueryResult<T = ObjectLiteral> = (

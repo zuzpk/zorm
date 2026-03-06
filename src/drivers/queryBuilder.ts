@@ -572,15 +572,15 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 case "select":
                 default:
                     const _select = await (this.queryBuilder as SelectQueryBuilder<T>).getMany()
-                    
+                    const hasRows = _select.length > 0;
                     const _result = {
-                        hasRows: _select.length > 0,
+                        hasRows,
                         count: _select.length,
                         row: _select.length > 0 ? _select[0] : undefined,
                         rows: _select.length == 1 ? [_select[0]] : _select,
                     } as SelectQueryResult<T>
 
-                    if ( this.isActiveRecord ){
+                    if ( hasRows && this.isActiveRecord ){
 
                         /**
                          * Safely saves the current state of .row
@@ -607,7 +607,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
 
                     }
                     
-                    return _result as R
+                    return _result as R;
             }
 
         } catch (err) {
