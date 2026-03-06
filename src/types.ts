@@ -97,11 +97,20 @@ export type InsertQueryResult<T = ObjectLiteral> = {
     error?: QueryError
 }
 
-export type SelectQueryResult<T = ObjectLiteral> = {
-    hasRows: boolean,
-    count?: number,
-    row?: T,
-    rows?: T[],
+export type SelectQueryResult<T = ObjectLiteral> = (
+    | {
+        hasRows: true;
+        row: T;
+        rows: T[];
+        count: number;
+      }
+    | {
+        hasRows: false;
+        row?: never;
+        rows: [];
+        count: 0;
+      }
+) & {
     error?: QueryError,
     /** Saves the current state of 'row' to the database */
     save?: () => Promise<T | null>;
@@ -109,11 +118,20 @@ export type SelectQueryResult<T = ObjectLiteral> = {
     patch?: (data: Partial<T>) => T | null;
 }
 
-export type UpdateQueryResult<T = ObjectLiteral> = {
-    updated: boolean;
-    affected: number;
-    record?: T;
-    records?: T[];
+export type UpdateQueryResult<T = ObjectLiteral> = (
+    | {
+        updated: true;
+        affected: number;
+        record: T;            // Required and non-nullable when hasRows is true
+        records: T[]; 
+      }
+    | {
+        updated: false;
+        affected: 0;
+        record?: never;            // Required and non-nullable when hasRows is true
+        records?: never[]; 
+      }
+) & {
     error?: QueryError;
 }
 

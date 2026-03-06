@@ -219,7 +219,7 @@ class Zorm {
      * @param {EntityTarget<T>} entity - The entity target.
      * @returns {ZormQueryBuilder<T, InsertQueryResult>} The query builder instance.
      */
-    create<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, InsertQueryResult> {
+    create<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, InsertQueryResult<T>> {
         return this.getQueryBuilder(entity, "create");
     }
 
@@ -228,7 +228,7 @@ class Zorm {
      * @param {EntityTarget<T>} entity - The entity target.
      * @returns {ZormQueryBuilder<T, SelectQueryResult>} The query builder instance.
      */
-    find<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, SelectQueryResult> {
+    find<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, SelectQueryResult<T>> {
         return this.getQueryBuilder(entity, "select")
     }
 
@@ -241,7 +241,7 @@ class Zorm {
      * @param {EntityTarget<T>} entity - The entity target.
      * @returns {ZormQueryBuilder<T, UpdateQueryResult>} The query builder instance.
      */
-    update<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, UpdateQueryResult> {
+    update<T extends ObjectLiteral>(entity: EntityTarget<T>): ZormQueryBuilder<T, UpdateQueryResult<T>> {
         return this.getQueryBuilder(entity, "update");
     }
 
