@@ -537,9 +537,13 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                 case "create":
                     this._create()
                     const _create = await (this.queryBuilder as InsertQueryBuilder<T>).execute()
+                    // For MySQL/MariaDB, identifiers usually contains the array of insert IDs
+                    const ids = _create.identifiers.map(id => Object.values(id)[0] as number);
                     return <R>{ 
                         created: true, 
-                        id: _create.raw.insertId, 
+                        // id: _create.raw.insertId, 
+                        id: ids[0], // First ID
+                        ids: ids,    // All IDs
                         record: _create.generatedMaps[0], 
                         records: _create.generatedMaps.length > 1 ? _create.generatedMaps : null
                     }
@@ -554,7 +558,8 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     // console.log(_updateQuery.getQueryAndParameters())
                     const _updated = await _get.getMany()
                     return <R>{ 
-                        updated: _update.affected ? _update.affected > 0 : false, 
+                        updated: (_update.affected || 0) > 0,
+                        affected: _update.affected || 0, 
                         record: _updated[0],
                         records: _updated.length > 1 ? _updated : []
                     }
@@ -562,7 +567,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     this._delete()
                     const _delete = await (this.queryBuilder as DeleteQueryBuilder<T>).execute()
                     return <R>{ 
-                        deleted: _delete.affected ? _delete.affected > 0 : false, 
+                        deleted: (_delete.affected || 0) > 0, 
                         count: _delete.affected || 0 }
                 case "select":
                 default:
@@ -571,7 +576,7 @@ class ZormQueryBuilder<T extends ObjectLiteral, R = QueryResult> extends Promise
                     const _result : SelectQueryResult<T> = {
                         hasRows: _select.length > 0,
                         count: _select.length,
-                        row: _select.length > 0 ? _select[0] : null,
+                        row: _select.length > 0 ? _select[0] : undefined,
                         rows: _select.length == 1 ? [_select[0]] : _select,
                     }
 

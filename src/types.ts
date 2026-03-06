@@ -88,19 +88,20 @@ export type QueryError = {
     values: string[]
 }
 
-export type InsertQueryResult = {
+export type InsertQueryResult<T = ObjectLiteral> = {
     created: boolean,
-    id?: number,
-    record?: ObjectLiteral,
-    records?: ObjectLiteral[]
+    id?: number; // Last insert ID
+    ids?: number[]; // Array of IDs for bulk inserts
+    record?: T;
+    records?: T[];
     error?: QueryError
 }
 
-export type SelectQueryResult<T = any> = {
+export type SelectQueryResult<T = ObjectLiteral> = {
     hasRows: boolean,
     count?: number,
-    row?: any,
-    rows?: any[],
+    row?: T,
+    rows?: T[],
     error?: QueryError,
     /** Saves the current state of 'row' to the database */
     save?: () => Promise<T | null>;
@@ -108,11 +109,12 @@ export type SelectQueryResult<T = any> = {
     patch?: (data: Partial<T>) => T | null;
 }
 
-export type UpdateQueryResult = {
-    updated: boolean,
-    record?: ObjectLiteral,
-    records?: ObjectLiteral[],
-    error?: QueryError
+export type UpdateQueryResult<T = ObjectLiteral> = {
+    updated: boolean;
+    affected: number;
+    record?: T;
+    records?: T[];
+    error?: QueryError;
 }
 
 export type DeleteQueryResult = {
